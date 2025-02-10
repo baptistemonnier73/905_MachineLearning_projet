@@ -3,10 +3,13 @@ import json
 
 import cv2
 import numpy as np
-import pandas as pd
-import requests
 from PIL import Image
+from datasets import load_dataset
 
+def image_to_bytes(image):
+    buffer = io.BytesIO()
+    image.save(buffer, format="JPEG")  # Utiliser un format explicite
+    return buffer.getvalue()
 
 def display_image(image_bytes):
     image = Image.open(io.BytesIO(image_bytes))
@@ -14,30 +17,22 @@ def display_image(image_bytes):
     cv2.imshow("Image", image_cv)
     cv2.waitKey(500)
 
-name = "Adèle Exarchopoulos"
+name = "Barack Obama"
 
-dataset_url = "https://huggingface.co/datasets/tonyassi/celebrity-1000/resolve/main/data/train-00000-of-00001.parquet"
 
-dataset_get_response = requests.get(dataset_url)
+with open("../data/names.json", "r", encoding="utf-8") as f:
 
-if dataset_get_response.status_code == 200:
+    names = json.load(f)
 
-    with open("../data/names.json", "r", encoding="utf-8") as f:
+    dataset = load_dataset("tonyassi/celebrity-1000")["train"]
 
-        names = json.load(f)
+    label = int(next(iter({name_label for name_label, v in names.items() if v == name}), None))
 
-        dataset = pd.read_parquet(io.BytesIO(dataset_get_response.content), engine="pyarrow")
+    images_bytes = {image_to_bytes(image_dataset) for image_dataset, label_dataset in zip(dataset["image"], dataset["label"]) if label_dataset == label}
 
-        label = int(next(iter({name_label for name_label, v in names.items() if v == name}), None))
+    print(f"name: {name}, label:{label}, {len(images_bytes)} images")
 
-        images_bytes = {dataset["image"][image_index]["bytes"] for image_index, dataset_label in dataset["label"].items() if dataset_label == label}
-
-        print(f"name: {name}, label:{label}, {len(images_bytes)} images")
-
-        for image_bytes in images_bytes:
-            display_image(image_bytes)
+    for image_bytes in images_bytes:
+        display_image(image_bytes)
 
     cv2.destroyAllWindows()
-
-else:
-    print("error getting dataset")
